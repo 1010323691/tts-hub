@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration and secrets (.env.example is the committed template)
+.env
+.env.*
+!.env.example
+
+# Runtime data: voice library, generated audio, job records, per-GPU VRAM calibration
+data/
+
+# Upstream Breeze TTS inference code, checked out at a pinned commit by install.ps1
+vendor/
+
+# Model weights and audio never belong in the repo
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.srt
+
+# Logs
+*.log
+
+# Editors / OS / local agent settings
+.vscode/
+.idea/
+.claude/settings.local.json
+Thumbs.db
+Desktop.ini
+.DS_Store
