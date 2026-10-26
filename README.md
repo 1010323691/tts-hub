@@ -25,12 +25,56 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 脚本会：创建 `.venv`（Python 3.14，uv）→ 装依赖 → 装 CUDA 版 torch 2.11 → 检出固定版本的上游推理代码到
-`vendor\breeze-tts` → 校验 GPU。权重 `BreezeBlue/breeze-tts-2`（约 7.7 GB）首次启动时下载到 HuggingFace 缓存，
-已有缓存（例如 NarrifyAudio 下载过的）直接复用。Qwen3-TTS 三个权重（各约 4.5 GB）在第一次用到对应功能时下载
-（预置音色 → CustomVoice，克隆 → Base，设计 → VoiceDesign）；推理代码是 pip 包 `qwen-tts`，已在依赖里。
+`vendor\breeze-tts` → 校验 GPU。Qwen3-TTS 的推理代码是 pip 包 `qwen-tts`，已在依赖里。
 
-> Windows 上 HuggingFace 缓存需要创建符号链接：未开「开发者模式」时下载会失败。可开启开发者模式，
-> 或手动下载权重到某目录后设 `BREEZE_MODEL=<该目录>`。
+### 模型权重（自动下载）
+
+不需要手动下载：服务用到哪个模型，就先查 HuggingFace 缓存（默认 `%USERPROFILE%\.cache\huggingface\hub`），
+没有才自动下载，之后一直复用。
+
+| 引擎 | 权重仓库 | 大小 | 什么时候下载 | 对应变量 |
+|---|---|---|---|---|
+| breeze | `BreezeBlue/breeze-tts-2` | 约 7.7 GB | 第一次启动（breeze 是默认引擎时） | `BREEZE_MODEL` |
+| qwen3 | `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | 约 4.5 GB | 第一次用 `qwen_*` 预置音色 | `QWEN_CUSTOM_MODEL` |
+| qwen3 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | 约 4.5 GB | 第一次用 qwen3 合成克隆/设计出的音色 | `QWEN_BASE_MODEL` |
+| qwen3 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | 约 4.5 GB | 第一次用 qwen3 设计音色 | `QWEN_DESIGN_MODEL` |
+
+下载期间 `/health` 停在 `loading`（启动时）或请求一直等待（Qwen3 首次用到时），日志里有「权重未缓存，正在从
+HuggingFace 下载」。分词器在各自仓库里，不会再拉别的仓库。
+
+**国内网络 / 镜像**：设置 `HF_ENDPOINT` 后，服务的自动下载就走镜像。写进 `.env`（`start.ps1` 启动时读取）：
+
+```
+HF_ENDPOINT=https://hf-mirror.com
+```
+
+或只对当前终端生效：`$env:HF_ENDPOINT = "https://hf-mirror.com"; .\start.ps1`。
+其他常用变量：`HF_HOME`（换缓存位置，例如放到大容量盘）、`HF_TOKEN`（需要登录时）。
+
+**提前 / 手动下载**（想在启动前下好、机器离线，或遇到下面的符号链接问题）：用虚拟环境自带的 `hf` 命令下载到
+普通目录，再把对应变量指向该目录（写进 `.env` 即可）：
+
+```powershell
+$env:HF_ENDPOINT = "https://hf-mirror.com"   # 可选：走镜像
+.\.venv\Scripts\hf.exe download BreezeBlue/breeze-tts-2 --local-dir D:\models\breeze-tts-2
+.\.venv\Scripts\hf.exe download Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice --local-dir D:\models\Qwen3-TTS-CustomVoice
+.\.venv\Scripts\hf.exe download Qwen/Qwen3-TTS-12Hz-1.7B-Base --local-dir D:\models\Qwen3-TTS-Base
+.\.venv\Scripts\hf.exe download Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign --local-dir D:\models\Qwen3-TTS-VoiceDesign
+```
+
+```
+BREEZE_MODEL=D:\models\breeze-tts-2
+QWEN_CUSTOM_MODEL=D:\models\Qwen3-TTS-CustomVoice
+QWEN_BASE_MODEL=D:\models\Qwen3-TTS-Base
+QWEN_DESIGN_MODEL=D:\models\Qwen3-TTS-VoiceDesign
+```
+
+只用 breeze 时下第一个就够；Qwen3 按需要的功能下对应的仓库。去掉 `--local-dir` 则下载到 HuggingFace 缓存，
+服务会自动找到，不用设变量。
+
+> **Windows 符号链接**：HuggingFace 缓存要创建符号链接，没开「开发者模式」也不是管理员时，自动下载会报
+> WinError 1314（日志有中文提示）。开启「设置 → 系统 → 开发者选项 → 开发者模式」即可；或者按上面用
+> `--local-dir` 下载到普通目录（不需要符号链接），再用变量指过去。
 
 ## 启动
 
